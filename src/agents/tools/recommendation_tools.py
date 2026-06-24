@@ -1,8 +1,23 @@
+"""Recommendation Tool
+
+Retrieves recommendation data using Spark SQL.
+"""
+
 def get_recommendation(
-    connection,
+    spark,
     product_key: int,
     store_key: int
 ):
+    """Get latest recommendation for a product at a store.
+    
+    Args:
+        spark: SparkSession object
+        product_key: Product identifier
+        store_key: Store identifier
+        
+    Returns:
+        dict: Latest recommendation data
+    """
     query = f"""
     SELECT *
 
@@ -16,9 +31,7 @@ def get_recommendation(
     LIMIT 1
     """
 
-    with connection.cursor() as cursor:
-        cursor.execute(query)
+    result_df = spark.sql(query)
+    row = result_df.first()
 
-        row = cursor.fetchone()
-
-    return dict(row)
+    return dict(row.asDict()) if row else {}

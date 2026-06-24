@@ -1,8 +1,23 @@
+"""Forecast Tool
+
+Retrieves demand forecast data using Spark SQL.
+"""
+
 def get_forecast(
-    connection,
+    spark,
     product_key: int,
     store_key: int
 ):
+    """Get demand forecast for a product at a store.
+    
+    Args:
+        spark: SparkSession object
+        product_key: Product identifier
+        store_key: Store identifier
+        
+    Returns:
+        dict: Forecast data for 7d, 14d, and 30d periods
+    """
     query = f"""
     SELECT
 
@@ -16,9 +31,7 @@ def get_forecast(
       AND store_key = {store_key}
     """
 
-    with connection.cursor() as cursor:
-        cursor.execute(query)
+    result_df = spark.sql(query)
+    row = result_df.first()
 
-        row = cursor.fetchone()
-
-    return dict(row)
+    return dict(row.asDict()) if row else {}

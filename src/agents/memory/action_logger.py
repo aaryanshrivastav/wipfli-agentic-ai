@@ -1,48 +1,58 @@
+"""Agent Action Logger
+
+Logs agent actions to agent_action_log table using Spark SQL.
+
+Table Schema:
+- action_id (auto-increment)
+- entity_type, entity_id
+- action_type, recommendation_reason
+- recommendation_timestamp, action_status
+- resolved_timestamp, created_at
+"""
+
 import json
 
 def log_agent_action(
-    connection,
-
-    run_id: str,
-
+    spark,
+    entity_type: str,
+    entity_id: int,
     action_type: str,
-
-    confidence_score: float,
-
-    reasoning: str,
-
-    action_payload: dict
+    recommendation_reason: str,
+    action_status: str = "PENDING"
 ):
+    """Log an agent action/recommendation.
+    
+    Args:
+        spark: SparkSession object
+        entity_type: Type of entity (e.g., 'inventory', 'supplier')
+        entity_id: Entity identifier
+        action_type: Action recommended (REORDER, EXPEDITE_PO, etc.)
+        recommendation_reason: Reasoning for the action
+        action_status: Status of the action (PENDING, APPROVED, REJECTED)
+    """
     query = f"""
     INSERT INTO agentdb.silver.agent_action_log
     (
-        run_id,
-
+        entity_type,
+        entity_id,
         action_type,
-
-        confidence_score,
-
-        reasoning,
-
-        action_payload,
-
+        recommendation_reason,
+        recommendation_timestamp,
+        action_status,
+        resolved_timestamp,
         created_at
     )
     VALUES
     (
-        '{run_id}',
-
+        '{entity_type}',
+        {entity_id},
         '{action_type}',
-
-        {confidence_score},
-
-        '{reasoning}',
-
-        '{json.dumps(action_payload)}',
-
+        '{recommendation_reason}',
+        CURRENT_TIMESTAMP(),
+        '{action_status}',
+        NULL,
         CURRENT_TIMESTAMP()
     )
     """
 
-    with connection.cursor() as cursor:
-        cursor.execute(query)
+    spark.sql(query)

@@ -1,11 +1,23 @@
-from databricks import sql
+"""Inventory Risk Tool
 
+Retrieves inventory risk data using Spark SQL.
+"""
 
 def get_inventory_risk(
-    connection,
+    spark,
     product_key: int,
     store_key: int
 ):
+    """Get inventory risk for a product at a store.
+    
+    Args:
+        spark: SparkSession object
+        product_key: Product identifier
+        store_key: Store identifier
+        
+    Returns:
+        dict: Inventory risk data including qty, forecasts, risk level
+    """
     query = f"""
     SELECT
         product_key,
@@ -27,9 +39,7 @@ def get_inventory_risk(
       AND store_key = {store_key}
     """
 
-    with connection.cursor() as cursor:
-        cursor.execute(query)
+    result_df = spark.sql(query)
+    row = result_df.first()
 
-        row = cursor.fetchone()
-
-    return dict(row)
+    return dict(row.asDict()) if row else {}
