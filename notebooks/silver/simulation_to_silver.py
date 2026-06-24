@@ -135,6 +135,14 @@ suppliers_spark.write.mode("overwrite").saveAsTable("agentdb.silver.supplier")
 
 print(f"✓ Inserted {len(results['suppliers'])} suppliers")
 
+# Read back to get the auto-generated supplier_ids and create mapping
+silver_suppliers = spark.table("agentdb.silver.supplier").select("supplier_id", "supplier_code").toPandas()
+supplier_id_mapping = dict(zip(
+    results['suppliers']['supplier_id'],
+    silver_suppliers['supplier_id']
+))
+print(f"✓ Created supplier ID mapping: simulation IDs {min(supplier_id_mapping.keys())}-{max(supplier_id_mapping.keys())} → silver IDs {min(supplier_id_mapping.values())}-{max(supplier_id_mapping.values())}")
+
 # COMMAND ----------
 
 # DBTITLE 1,Write Distribution Centers to Silver
@@ -169,6 +177,28 @@ dcs_spark.write.mode("overwrite").saveAsTable("agentdb.silver.distribution_cente
 
 print(f"✓ Inserted {len(results['distribution_centers'])} distribution centers")
 
+# Read back to get the auto-generated dc_ids and create mapping by dc_code
+silver_dcs = spark.table("agentdb.silver.distribution_center").select("dc_id", "dc_code").toPandas()
+
+# Create a mapping from dc_code to dc_id for the simulation results
+# First, add dc_codes to the simulation results if they don't have IDs
+if 'dc_id' not in results['distribution_centers'].columns:
+    # Map by dc_code: create a temp dc_id (1-4) based on position
+    results['distribution_centers']['temp_dc_id'] = range(1, len(results['distribution_centers']) + 1)
+    dc_code_to_silver_id = dict(zip(silver_dcs['dc_code'], silver_dcs['dc_id']))
+    dc_id_mapping = {
+        row['temp_dc_id']: dc_code_to_silver_id[row['dc_code']]
+        for _, row in results['distribution_centers'].iterrows()
+    }
+else:
+    # Original mapping by dc_id
+    dc_id_mapping = dict(zip(
+        results['distribution_centers']['dc_id'],
+        silver_dcs['dc_id']
+    ))
+
+print(f"✓ Created DC ID mapping: simulation IDs {min(dc_id_mapping.keys())}-{max(dc_id_mapping.keys())} → silver IDs {min(dc_id_mapping.values())}-{max(dc_id_mapping.values())}")
+
 # COMMAND ----------
 
 # DBTITLE 1,Write Purchase Orders to Silver
@@ -181,13 +211,17 @@ batch_id = str(uuid.uuid4())
 if len(results['purchase_orders']) == 0:
     print("⚠ No purchase orders generated (no inventory below reorder point)")
 else:
-    pos_spark = spark.createDataFrame(results['purchase_orders'])
+    # Map simulation IDs to actual silver table IDs
+    pos_df = results['purchase_orders'].copy()
+    pos_df['supplier_id'] = pos_df['supplier_id'].map(supplier_id_mapping)
     
-    # Add dc_id (randomly assign to one of the 4 DCs for now)
-    pos_spark = pos_spark.withColumn(
-        "dc_id",
-        (F.rand() * 4).cast("int") + 1
-    )
+    # Randomly assign DCs and map to actual silver IDs
+    import numpy as np
+    np.random.seed(42)
+    pos_df['dc_id'] = np.random.randint(1, 5, size=len(pos_df))  # Random 1-4
+    pos_df['dc_id'] = pos_df['dc_id'].map(dc_id_mapping)
+    
+    pos_spark = spark.createDataFrame(pos_df)
     
     # Add load_batch_id
     pos_spark = pos_spark.withColumn("load_batch_id", F.lit(batch_id))
@@ -274,7 +308,11 @@ print(f"✓ Inserted {len(results['dc_inventory'])} DC inventory records")
 # Transform and write disruptions to silver.supplier_disruption
 print("\nWriting supplier disruptions to agentdb.silver.supplier_disruption...")
 
-disruptions_spark = spark.createDataFrame(results['disruptions'])
+# Map simulation supplier_ids to actual silver table IDs
+disruptions_df = results['disruptions'].copy()
+disruptions_df['supplier_id'] = disruptions_df['supplier_id'].map(supplier_id_mapping)
+
+disruptions_spark = spark.createDataFrame(disruptions_df)
 
 # Add load_batch_id
 disruptions_spark = disruptions_spark.withColumn("load_batch_id", F.lit(batch_id))
