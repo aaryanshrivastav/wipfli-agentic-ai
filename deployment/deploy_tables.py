@@ -292,98 +292,80 @@ except Exception as e:
 
 # COMMAND ----------
 
-# DBTITLE 1,Next Steps
-# MAGIC %md
-# MAGIC ## Next Steps
-# MAGIC
-# MAGIC ### Directory Structure
-# MAGIC
-# MAGIC This notebook executes SQL files from folder names in the `database/` directory:
-# MAGIC
-# MAGIC ```
-# MAGIC database/
-# MAGIC ├── bronze/              →  agentdb.bronze schema
-# MAGIC │   ├── raw_customers.sql   →  Executed in agentdb.bronze
-# MAGIC │   └── raw_orders.sql      →  Executed in agentdb.bronze
-# MAGIC ├── silver/              →  agentdb.silver schema
-# MAGIC │   └── cleaned_data.sql    →  Executed in agentdb.silver
-# MAGIC └── gold/                →  agentdb.gold schema
-# MAGIC     └── metrics.sql         →  Executed in agentdb.gold
-# MAGIC ```
-# MAGIC
-# MAGIC ### SQL File Format
-# MAGIC
-# MAGIC Each SQL file should contain one or more CREATE TABLE statements:
-# MAGIC
-# MAGIC ```sql
-# MAGIC -- Example: database/bronze/customers.sql
-# MAGIC CREATE OR REPLACE TABLE customers (
-# MAGIC   id BIGINT,
-# MAGIC   name STRING,
-# MAGIC   email STRING,
-# MAGIC   created_at TIMESTAMP
-# MAGIC )
-# MAGIC USING DELTA;
-# MAGIC
-# MAGIC -- You can have multiple statements separated by semicolons
-# MAGIC CREATE OR REPLACE TABLE orders (
-# MAGIC   order_id BIGINT,
-# MAGIC   customer_id BIGINT,
-# MAGIC   amount DECIMAL(10,2)
-# MAGIC )
-# MAGIC USING DELTA;
-# MAGIC ```
-# MAGIC
-# MAGIC **Note:** You don't need to specify the full table name (catalog.schema.table) - the notebook automatically sets the context to the correct schema.
-# MAGIC
-# MAGIC ### Querying the Tables
-# MAGIC
-# MAGIC You can now query the created tables using:
-# MAGIC
-# MAGIC ```sql
-# MAGIC SELECT * FROM agentdb.<schema_name>.<table_name> LIMIT 10;
-# MAGIC ```
-# MAGIC
-# MAGIC Example:
-# MAGIC ```sql
-# MAGIC SELECT * FROM agentdb.bronze.customers LIMIT 10;
-# MAGIC SELECT * FROM agentdb.silver.cleaned_data LIMIT 10;
-# MAGIC ```
-# MAGIC
-# MAGIC ### Adding More Tables
-# MAGIC
-# MAGIC To add more schemas and tables:
-# MAGIC 1. Create folders in the `database/` directory (folder names become schemas)
-# MAGIC 2. Add `.sql` files with CREATE TABLE statements in these folders
-# MAGIC 3. Re-run this notebook
-# MAGIC 4. Tables will be created or replaced based on your SQL statements
-# MAGIC
-# MAGIC ### Naming Conventions
-# MAGIC
-# MAGIC **Schemas (folder names):**
-# MAGIC - Converted to lowercase
-# MAGIC - Hyphens and spaces replaced with underscores
-# MAGIC - Example: `Customer-Data` → `customer_data`
-# MAGIC
-# MAGIC **Tables:**
-# MAGIC - Defined in your SQL files
-# MAGIC - Can use any valid table name
-# MAGIC - Will be created in the schema matching the folder name
-# MAGIC
-# MAGIC ### Supported SQL Statements
-# MAGIC
-# MAGIC - `CREATE TABLE`
-# MAGIC - `CREATE OR REPLACE TABLE`
-# MAGIC - `CREATE TABLE IF NOT EXISTS`
-# MAGIC - Multiple statements per file (separated by semicolons)
-# MAGIC - Comments using `--` or `/* */`
-# MAGIC
-# MAGIC ### Troubleshooting
-# MAGIC
-# MAGIC If tables aren't created:
-# MAGIC - Check that the `database/` directory exists relative to this notebook
-# MAGIC - Verify folders exist in `database/` (each folder becomes a schema)
-# MAGIC - Ensure files have `.sql` extension
-# MAGIC - Verify SQL syntax is correct
-# MAGIC - Check that CREATE TABLE statements don't include catalog.schema prefix
-# MAGIC - Review error messages in the execution output above
+from pathlib import Path
+
+# Create forecasting schema in agentdb and execute SQL files in database/forecasting
+
+schema_name = "forecasting"
+sql_dir = Path(DATABASE_DIR) / schema_name
+
+# Create schema
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{schema_name}")
+print(f"✓ Created schema: {CATALOG}.{schema_name}")
+
+# Find SQL files in database/forecasting
+sql_files = sorted([f for f in sql_dir.rglob("*.sql") if f.is_file()])
+
+if not sql_files:
+    print(f"No SQL files found in {sql_dir}")
+else:
+    print(f"Found {len(sql_files)} SQL file(s) in {sql_dir} to execute\n")
+    files_executed = 0
+    files_failed = 0
+    tables_created = 0
+
+    for i, sql_file in enumerate(sql_files, 1):
+        print(f"  [{i}/{len(sql_files)}] {sql_file.name}")
+        success, message, tables = execute_sql_file(sql_file, CATALOG, schema_name)
+        if success:
+            print(f"    ✓ {message}")
+            files_executed += 1
+            tables_created += len(tables)
+        else:
+            print(f"    ✗ {message}")
+            files_failed += 1
+
+    print("\nExecution Summary:")
+    print(f"SQL files executed successfully: {files_executed}")
+    print(f"SQL files failed: {files_failed}")
+    print(f"Total tables created: {tables_created}")
+
+# COMMAND ----------
+
+from pathlib import Path
+
+# Create forecasting schema in agentdb and execute SQL files in database/forecasting
+
+schema_name = "intelligence"
+sql_dir = Path(DATABASE_DIR) / schema_name
+
+# Create schema
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{schema_name}")
+print(f"✓ Created schema: {CATALOG}.{schema_name}")
+
+# Find SQL files in database/forecasting
+sql_files = sorted([f for f in sql_dir.rglob("*.sql") if f.is_file()])
+
+if not sql_files:
+    print(f"No SQL files found in {sql_dir}")
+else:
+    print(f"Found {len(sql_files)} SQL file(s) in {sql_dir} to execute\n")
+    files_executed = 0
+    files_failed = 0
+    tables_created = 0
+
+    for i, sql_file in enumerate(sql_files, 1):
+        print(f"  [{i}/{len(sql_files)}] {sql_file.name}")
+        success, message, tables = execute_sql_file(sql_file, CATALOG, schema_name)
+        if success:
+            print(f"    ✓ {message}")
+            files_executed += 1
+            tables_created += len(tables)
+        else:
+            print(f"    ✗ {message}")
+            files_failed += 1
+
+    print("\nExecution Summary:")
+    print(f"SQL files executed successfully: {files_executed}")
+    print(f"SQL files failed: {files_failed}")
+    print(f"Total tables created: {tables_created}")
